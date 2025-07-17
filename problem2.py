@@ -1,4 +1,21 @@
 # 延续上题模拟，加入碰撞检测
+import numpy as np
+import problem1 as p1
+
+# 引入问题1中的参数和结果
+times = p1.times
+invert_length = p1.invert_length
+N = p1.N
+D_head = p1.D_head
+D_body = p1.D_body
+s_head0 = p1.s_head0
+theta_head0 = p1.theta_head0
+v_head = p1.v_head
+a = p1.a
+output = p1.output
+T_total = p1.T_total
+
+
 collision = False
 t_star = None
 min_clearance = float('inf')
@@ -65,4 +82,4 @@ else:
 # 碰撞发生时刻前一秒的数据作为输出
 result_time = t_star - 1 if collision else T_total
 result_data = output.loc[[result_time]]
-result_data.to_excel("result2.xlsx", index=False, header=["横坐标x (m)","纵坐标y (m)","速度 (m/s)"])
+result_data.to_excel("result2.xlsx", index=False)

@@ -1,3 +1,13 @@
+import numpy as np
+import problem1 as p1
+
+# 从问题1导入参数
+N = p1.N
+D_head = p1.D_head
+D_body = p1.D_body
+v_head = p1.v_head
+invert_length = p1.invert_length
+
 # 判定函数：给定螺距p，返回龙头能否无碰撞盘入至4.5m
 def can_reach_no_collision(p):
     a = p/(2*np.pi)
