@@ -6,6 +6,7 @@ N = p1.N
 D_head = p1.D_head
 D_body = p1.D_body
 v_head = p1.v_head
+p_reference = p1.p  # pitch used in problem1 to compute initial radius
 
 def spiral_length(theta, a):
     """Return arc length of Archimedean spiral r=a*theta."""
@@ -50,10 +51,11 @@ def segment_distance(a1, a2, b1, b2):
 
 # 判定函数：给定螺距p，返回龙头能否无碰撞盘入至4.5m
 def can_reach_no_collision(p):
-    a = p/(2*np.pi)
-    # 初始配置
-    theta_head0 = 16*2*np.pi
-    s_head0 = 0.5*a*(theta_head0*np.sqrt(theta_head0**2+1) + np.arcsinh(theta_head0))
+    a = p / (2 * np.pi)
+    # initial radius matches the configuration used in problem1
+    r_start = 16 * p_reference
+    theta_head0 = r_start / a
+    s_head0 = spiral_length(theta_head0, a)
     # 模拟直到龙头半径=4.5或发生碰撞
     target_theta = 4.5 / a
     arc_needed = s_head0 - spiral_length(target_theta, a)
@@ -74,6 +76,7 @@ def can_reach_no_collision(p):
         theta_prev = theta_head
         max_seg = min(N, 40)
         last_theta = theta_head
+        last_s = s_head
         for i in range(2, max_seg + 1):
             s_i = s_head - (D_head + (i - 2) * D_body)
             if s_i < 0:
@@ -85,8 +88,9 @@ def can_reach_no_collision(p):
             seg_coords.append(((handles[-2][0], handles[-2][1]), (xi, yi)))
             theta_prev = theta_i
             last_theta = theta_i
+            last_s = s_i
         # 尾部后把手
-        s_tail = s_i - D_body
+        s_tail = last_s - D_body
         if s_tail >= 0:
             theta_tail = invert_length(s_tail, last_theta, a)
             xt = a * theta_tail * np.cos(theta_tail)
