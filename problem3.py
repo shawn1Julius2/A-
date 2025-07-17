@@ -14,18 +14,14 @@ def spiral_length(theta, a):
 
 
 def invert_length(s_target, theta_guess, a):
-    """Invert spiral length for given ``a`` using binary search."""
-    low, high = 0.0, max(theta_guess, theta_guess + 10)
-    while spiral_length(high, a) < s_target:
-        low = high
-        high *= 2
-    for _ in range(50):
-        mid = 0.5 * (low + high)
-        if spiral_length(mid, a) < s_target:
-            low = mid
-        else:
-            high = mid
-    return 0.5 * (low + high)
+    """Invert spiral length for given ``a`` using Newton iteration."""
+    theta = max(theta_guess, 0.0)
+    for _ in range(8):  # Newton iteration converges very fast
+        f = 0.5 * a * (theta * np.sqrt(theta**2 + 1) + np.arcsinh(theta)) - s_target
+        if abs(f) < 1e-9:
+            break
+        theta -= f / (a * np.sqrt(theta**2 + 1))
+    return theta
 
 def point_line_dist(px, py, ax, ay, bx, by):
     """Return distance from point ``P`` to segment ``AB``."""
@@ -52,61 +48,50 @@ def segment_distance(a1, a2, b1, b2):
 # 判定函数：给定螺距p，返回龙头能否无碰撞盘入至4.5m
 def can_reach_no_collision(p):
     a = p / (2 * np.pi)
-    # initial radius matches the configuration used in problem1
-    r_start = 16 * p_reference
+    # initial radius corresponds to the same 16 turns for the given pitch
+    r_start = 16 * p
     theta_head0 = r_start / a
     s_head0 = spiral_length(theta_head0, a)
-    # 模拟直到龙头半径=4.5或发生碰撞
-    target_theta = 4.5 / a
-    arc_needed = s_head0 - spiral_length(target_theta, a)
-    max_t = int(arc_needed / v_head) + 10
-    for t in range(max_t + 1):
-        s_head = s_head0 - v_head * t
-        # 当前龙头半径
-        theta_head = invert_length(s_head, theta_head0, a)
-        r_head = a*theta_head
-        if r_head <= 4.5:
-            return True  # 已到调头边界且无碰撞
-        # 计算前后把手坐标（仅取前40节加尾部，加速计算）
-        seg_coords = []
-        handles = []
-        x_head = a * theta_head * np.cos(theta_head)
-        y_head = a * theta_head * np.sin(theta_head)
-        handles.append((x_head, y_head))
-        theta_prev = theta_head
-        max_seg = min(N, 40)
-        last_theta = theta_head
-        last_s = s_head
-        for i in range(2, max_seg + 1):
-            s_i = s_head - (D_head + (i - 2) * D_body)
-            if s_i < 0:
-                break
-            theta_i = invert_length(s_i, theta_prev, a)
-            xi = a * theta_i * np.cos(theta_i)
-            yi = a * theta_i * np.sin(theta_i)
-            handles.append((xi, yi))
-            seg_coords.append(((handles[-2][0], handles[-2][1]), (xi, yi)))
-            theta_prev = theta_i
-            last_theta = theta_i
-            last_s = s_i
-        # 尾部后把手
-        s_tail = last_s - D_body
-        if s_tail >= 0:
-            theta_tail = invert_length(s_tail, last_theta, a)
-            xt = a * theta_tail * np.cos(theta_tail)
-            yt = a * theta_tail * np.sin(theta_tail)
-            handles.append((xt, yt))
-            seg_coords.append(((handles[-2][0], handles[-2][1]), (xt, yt)))
+    # 直接检查最终配置：龙头位于半径4.5 m处
+    theta_head = 4.5 / a
+    s_head = spiral_length(theta_head, a)
+    handles = []
+    seg_coords = []
+    x_head = a * theta_head * np.cos(theta_head)
+    y_head = a * theta_head * np.sin(theta_head)
+    handles.append((x_head, y_head))
+    theta_prev = theta_head
+    last_theta = theta_head
+    last_s = s_head
+    for i in range(2, N + 1):
+        s_i = s_head - (D_head + (i - 2) * D_body)
+        if s_i < 0:
+            break
+        theta_i = invert_length(s_i, theta_prev, a)
+        xi = a * theta_i * np.cos(theta_i)
+        yi = a * theta_i * np.sin(theta_i)
+        handles.append((xi, yi))
+        seg_coords.append(((handles[-2][0], handles[-2][1]), (xi, yi)))
+        theta_prev = theta_i
+        last_theta = theta_i
+        last_s = s_i
+    # 尾部后把手
+    s_tail = last_s - D_body
+    if s_tail >= 0:
+        theta_tail = invert_length(s_tail, last_theta, a)
+        xt = a * theta_tail * np.cos(theta_tail)
+        yt = a * theta_tail * np.sin(theta_tail)
+        handles.append((xt, yt))
+        seg_coords.append(((handles[-2][0], handles[-2][1]), (xt, yt)))
 
-        # 碰撞检测：计算非邻接线段间最小距离
-        for idx_a in range(len(seg_coords)-2):
-            A1, A2 = seg_coords[idx_a]
-            for idx_b in range(idx_a+2, len(seg_coords)):
-                B1, B2 = seg_coords[idx_b]
-                if segment_distance(A1, A2, B1, B2) < 0.30:
-                    return False
-    # 300 s内仍未到4.5（应不会发生）
-    return False
+    # 碰撞检测：计算非邻接线段间最小距离
+    for idx_a in range(len(seg_coords)-2):
+        A1, A2 = seg_coords[idx_a]
+        for idx_b in range(idx_a+2, len(seg_coords)):
+            B1, B2 = seg_coords[idx_b]
+            if segment_distance(A1, A2, B1, B2) < 0.30:
+                return False
+    return True
 
 if __name__ == "__main__":
     # 二分搜索最小螺距
