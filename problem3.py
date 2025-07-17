@@ -26,15 +26,38 @@ def invert_length(s_target, theta_guess, a):
             high = mid
     return 0.5 * (low + high)
 
+def point_line_dist(px, py, ax, ay, bx, by):
+    """Return distance from point ``P`` to segment ``AB``."""
+    if ax == bx and ay == by:
+        return np.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)))
+    projx = ax + t * (bx - ax)
+    projy = ay + t * (by - ay)
+    return np.hypot(px - projx, py - projy)
+
+
+def segment_distance(a1, a2, b1, b2):
+    """Return minimal distance between segments ``a1a2`` and ``b1b2``."""
+    Ax, Ay = a1
+    Bx, By = a2
+    Cx, Cy = b1
+    Dx, Dy = b2
+    d1 = point_line_dist(Ax, Ay, Cx, Cy, Dx, Dy)
+    d2 = point_line_dist(Bx, By, Cx, Cy, Dx, Dy)
+    d3 = point_line_dist(Cx, Cy, Ax, Ay, Bx, By)
+    d4 = point_line_dist(Dx, Dy, Ax, Ay, Bx, By)
+    return min(d1, d2, d3, d4)
+
 # 判定函数：给定螺距p，返回龙头能否无碰撞盘入至4.5m
 def can_reach_no_collision(p):
     a = p/(2*np.pi)
     # 初始配置
     theta_head0 = 16*2*np.pi
     s_head0 = 0.5*a*(theta_head0*np.sqrt(theta_head0**2+1) + np.arcsinh(theta_head0))
-    # 模拟直到龙头半径=4.5或碰撞
-    r_head = None
-    max_t = 300  # 最多模拟300s或提前结束
+    # 模拟直到龙头半径=4.5或发生碰撞
+    target_theta = 4.5 / a
+    arc_needed = s_head0 - spiral_length(target_theta, a)
+    max_t = int(arc_needed / v_head) + 10
     for t in range(max_t + 1):
         s_head = s_head0 - v_head * t
         # 当前龙头半径
@@ -42,29 +65,42 @@ def can_reach_no_collision(p):
         r_head = a*theta_head
         if r_head <= 4.5:
             return True  # 已到调头边界且无碰撞
-        # 碰撞检测（与问题2类似，但为简化仅检测板凳前把手距离）
-        coords = []
-        coords.append((a*theta_head*np.cos(theta_head), a*theta_head*np.sin(theta_head)))
+        # 计算前后把手坐标（仅取前40节加尾部，加速计算）
+        seg_coords = []
+        handles = []
+        x_head = a * theta_head * np.cos(theta_head)
+        y_head = a * theta_head * np.sin(theta_head)
+        handles.append((x_head, y_head))
         theta_prev = theta_head
-        for i in range(2, N + 1):
+        max_seg = min(N, 40)
+        last_theta = theta_head
+        for i in range(2, max_seg + 1):
             s_i = s_head - (D_head + (i - 2) * D_body)
             if s_i < 0:
-                break  # 该节及之后的板凳尚未进入盘头，忽略
+                break
             theta_i = invert_length(s_i, theta_prev, a)
-            coords.append((a * theta_i * np.cos(theta_i), a * theta_i * np.sin(theta_i)))
+            xi = a * theta_i * np.cos(theta_i)
+            yi = a * theta_i * np.sin(theta_i)
+            handles.append((xi, yi))
+            seg_coords.append(((handles[-2][0], handles[-2][1]), (xi, yi)))
             theta_prev = theta_i
-        # 快速碰撞判定：检测所有非邻接板凳前把手之间的距离
-        m = len(coords)
-        min_dist = float('inf')
-        for i in range(m-2):
-            for j in range(i+2, m):
-                dx = coords[i][0] - coords[j][0]
-                dy = coords[i][1] - coords[j][1]
-                dist = dx*dx + dy*dy
-                if dist < min_dist:
-                    min_dist = dist
-        if min_dist <= (0.30)**2:  # 距离平方小于板宽平方，碰撞
-            return False
+            last_theta = theta_i
+        # 尾部后把手
+        s_tail = s_i - D_body
+        if s_tail >= 0:
+            theta_tail = invert_length(s_tail, last_theta, a)
+            xt = a * theta_tail * np.cos(theta_tail)
+            yt = a * theta_tail * np.sin(theta_tail)
+            handles.append((xt, yt))
+            seg_coords.append(((handles[-2][0], handles[-2][1]), (xt, yt)))
+
+        # 碰撞检测：计算非邻接线段间最小距离
+        for idx_a in range(len(seg_coords)-2):
+            A1, A2 = seg_coords[idx_a]
+            for idx_b in range(idx_a+2, len(seg_coords)):
+                B1, B2 = seg_coords[idx_b]
+                if segment_distance(A1, A2, B1, B2) < 0.30:
+                    return False
     # 300 s内仍未到4.5（应不会发生）
     return False
 
