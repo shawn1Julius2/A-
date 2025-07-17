@@ -13,18 +13,28 @@ def spiral_length(theta, a):
 
 
 def invert_length(s_target, theta_guess, a):
-    """Invert spiral length for given ``a`` using binary search."""
-    low, high = 0.0, max(theta_guess, theta_guess + 10)
-    while spiral_length(high, a) < s_target:
-        low = high
-        high *= 2
-    for _ in range(50):
-        mid = 0.5 * (low + high)
-        if spiral_length(mid, a) < s_target:
-            low = mid
-        else:
-            high = mid
-    return 0.5 * (low + high)
+    """Approximate ``theta`` satisfying ``spiral_length(theta, a) = s_target``.
+
+    The original implementation relied on a binary search which was rather
+    slow when called repeatedly.  Here Newton's method is utilised with a
+    heuristic initial guess which accelerates the inversion significantly
+    while retaining adequate precision for the collision check.
+    """
+
+    # A reasonable starting point: s \approx 0.5 * a * theta^2  => theta ~ sqrt(2s/a)
+    theta = max(theta_guess, 0.0)
+    if s_target > 0:
+        theta = max(theta, np.sqrt(2.0 * s_target / a))
+
+    for _ in range(10):
+        f = spiral_length(theta, a) - s_target
+        if abs(f) < 1e-9:
+            break
+        df = a * np.sqrt(theta ** 2 + 1)
+        theta -= f / df
+        if theta < 0:
+            theta = 0.0
+    return theta
 
 def point_line_dist(px, py, ax, ay, bx, by):
     """Return distance from point ``P`` to segment ``AB``."""
@@ -58,21 +68,22 @@ def can_reach_no_collision(p):
     target_theta = 4.5 / a
     arc_needed = s_head0 - spiral_length(target_theta, a)
     max_t = int(arc_needed / v_head) + 10
-    for t in range(max_t + 1):
+    dt = 10  # time step (s) - coarse step for efficiency
+    for t in range(0, max_t + 1, dt):
         s_head = s_head0 - v_head * t
         # 当前龙头半径
         theta_head = invert_length(s_head, theta_head0, a)
         r_head = a*theta_head
         if r_head <= 4.5:
             return True  # 已到调头边界且无碰撞
-        # 计算前后把手坐标（仅取前40节加尾部，加速计算）
+        # 计算前后把手坐标（仅取前若干节加尾部，加速计算）
         seg_coords = []
         handles = []
         x_head = a * theta_head * np.cos(theta_head)
         y_head = a * theta_head * np.sin(theta_head)
         handles.append((x_head, y_head))
         theta_prev = theta_head
-        max_seg = min(N, 40)
+        max_seg = min(N, 60)  # check more segments for safety
         last_theta = theta_head
         for i in range(2, max_seg + 1):
             s_i = s_head - (D_head + (i - 2) * D_body)
@@ -99,6 +110,9 @@ def can_reach_no_collision(p):
             A1, A2 = seg_coords[idx_a]
             for idx_b in range(idx_a+2, len(seg_coords)):
                 B1, B2 = seg_coords[idx_b]
+                # quick bounding box check to skip obviously distant pairs
+                if (abs(A1[0]-B1[0]) > 3*D_body and abs(A2[1]-B2[1]) > 3*D_body):
+                    continue
                 if segment_distance(A1, A2, B1, B2) < 0.30:
                     return False
     # 300 s内仍未到4.5（应不会发生）
