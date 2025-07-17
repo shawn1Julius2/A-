@@ -55,15 +55,18 @@ def can_reach_no_collision(p):
 p_low, p_high = 0.30, 0.55
 p_min = None
 for _ in range(30):  # 二分迭代
-    p_mid = 0.5*(p_low + p_high)
+    p_mid = 0.5 * (p_low + p_high)
     if can_reach_no_collision(p_mid):
         p_min = p_mid
         p_high = p_mid  # 螺距可以，尝试减小上界
     else:
         p_low = p_mid   # 螺距太小碰撞，增大下界
-p_min = round(p_min, 6)
-print(f"最小可行螺距 p_min = {p_min} m")
-# 验证：用p_min再模拟全程，输出龙头前把手轨迹末端坐标
-if p_min:
+
+# 若找到合适的螺距，进行四舍五入并输出结果
+if p_min is not None:
+    p_min = round(p_min, 6)
+    print(f"最小可行螺距 p_min = {p_min} m")
+    # 验证：用p_min再模拟全程，输出龙头前把手轨迹末端坐标
     # ...（此处可调用问题1、2合并的模拟过程直到龙头r=4.5，输出最终位置等数据）...
-    pass
+else:
+    print("在给定范围内未找到满足条件的螺距。")
