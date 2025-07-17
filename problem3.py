@@ -48,8 +48,8 @@ def segment_distance(a1, a2, b1, b2):
 # 判定函数：给定螺距p，返回龙头能否无碰撞盘入至4.5m
 def can_reach_no_collision(p):
     a = p / (2 * np.pi)
-    # initial radius corresponds to the same 16 turns for the given pitch
-    r_start = 16 * p
+    # start radius fixed at 16 turns of the reference pitch (8.8 m)
+    r_start = 16 * p_reference
     theta_head0 = r_start / a
     s_head0 = spiral_length(theta_head0, a)
     # 直接检查最终配置：龙头位于半径4.5 m处
@@ -64,9 +64,7 @@ def can_reach_no_collision(p):
     last_theta = theta_head
     last_s = s_head
     for i in range(2, N + 1):
-        s_i = s_head - (D_head + (i - 2) * D_body)
-        if s_i < 0:
-            break
+        s_i = s_head + (D_head + (i - 2) * D_body)
         theta_i = invert_length(s_i, theta_prev, a)
         xi = a * theta_i * np.cos(theta_i)
         yi = a * theta_i * np.sin(theta_i)
@@ -76,20 +74,19 @@ def can_reach_no_collision(p):
         last_theta = theta_i
         last_s = s_i
     # 尾部后把手
-    s_tail = last_s - D_body
-    if s_tail >= 0:
-        theta_tail = invert_length(s_tail, last_theta, a)
-        xt = a * theta_tail * np.cos(theta_tail)
-        yt = a * theta_tail * np.sin(theta_tail)
-        handles.append((xt, yt))
-        seg_coords.append(((handles[-2][0], handles[-2][1]), (xt, yt)))
+    s_tail = last_s + D_body
+    theta_tail = invert_length(s_tail, last_theta, a)
+    xt = a * theta_tail * np.cos(theta_tail)
+    yt = a * theta_tail * np.sin(theta_tail)
+    handles.append((xt, yt))
+    seg_coords.append(((handles[-2][0], handles[-2][1]), (xt, yt)))
 
     # 碰撞检测：计算非邻接线段间最小距离
     for idx_a in range(len(seg_coords)-2):
         A1, A2 = seg_coords[idx_a]
         for idx_b in range(idx_a+2, len(seg_coords)):
             B1, B2 = seg_coords[idx_b]
-            if segment_distance(A1, A2, B1, B2) < 0.30:
+            if segment_distance(A1, A2, B1, B2) < 0.382:
                 return False
     return True
 
