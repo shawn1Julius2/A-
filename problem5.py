@@ -1,9 +1,37 @@
+import numpy as np
+from math import cos, sin, pi, acos
+import problem1 as p1
+import problem4 as p4
+
+# 从问题1和问题4获取所需参数
+N = p1.N
+D_head = p1.D_head
+D_body = p1.D_body
+a = p1.a
+invert_length = p1.invert_length
+spiral_length = p1.spiral_length
+R1_opt = p4.R1_opt
+R2_opt = p4.R2_opt
+Bx_opt = p4.Bx_opt
+By_opt = p4.By_opt
+R_turn = p4.R_turn
+A = p4.A
+C = p4.C
+
+# 计算转向弧角
+O1 = np.array([0.0, R_turn - R1_opt])
+O2 = np.array([0.0, -R_turn + R2_opt])
+theta1_opt = acos(np.clip(np.dot(A - O1, np.array([Bx_opt, By_opt]) - O1) / (np.linalg.norm(A - O1) * np.linalg.norm(np.array([Bx_opt, By_opt]) - O1)), -1, 1))
+theta2_opt = acos(np.clip(np.dot(C - O2, np.array([Bx_opt, By_opt]) - O2) / (np.linalg.norm(C - O2) * np.linalg.norm(np.array([Bx_opt, By_opt]) - O2)), -1, 1))
+theta_A = R_turn / a
+theta_C = theta_A
+L_arc1 = R1_opt * theta1_opt
+L_arc2 = R2_opt * theta2_opt
+
 # 假设已获得问题4中优化路径参数 R1_opt, R2_opt, 以及对应曲线ABC坐标
 # 这里直接沿用问题1的链条运动模型，但需要组合螺旋线和圆弧路径
 
 # 定义全局路径参数化长度
-L_arc1 = R1_opt * theta1_opt  # 第一段弧长
-L_arc2 = R2_opt * theta2_opt  # 第二段弧长
 # （theta1_opt, theta2_opt可由优化解计算得到，即AO1B和CO2B角）
 total_time = 200  # 模拟从调头前100s到调头后100s
 dt = 1.0
