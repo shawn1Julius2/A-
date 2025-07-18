@@ -1,85 +1,110 @@
-# 延续上题模拟，加入碰撞检测
+"""Detect spiral chain collision and output state at the stopping time."""
+
+from __future__ import annotations
+
 import numpy as np
+import pandas as pd
+
 import problem1 as p1
 
-# 引入问题1中的参数和结果
-times = p1.times
-invert_length = p1.invert_length
-N = p1.N
-D_head = p1.D_head
-D_body = p1.D_body
-s_head0 = p1.s_head0
-theta_head0 = p1.theta_head0
-v_head = p1.v_head
-a = p1.a
-output = p1.output
-T_total = p1.T_total
+# Extend simulation time to capture potential collisions
+MAX_TIME = 600
+DT = 1.0
+if p1.T_total < MAX_TIME:
+    p1.times = np.arange(0, MAX_TIME + DT, DT)
+    p1.T_total = MAX_TIME
+    OUTPUT, VELOCITY = p1.generate_data()
+else:
+    OUTPUT, VELOCITY = p1.output, p1.velocity
 
+TIMES = p1.times
+N = p1.N
+D_HEAD = p1.D_head
+D_BODY = p1.D_body
+
+
+def point_to_segment_dist(px: float, py: float, ax: float, ay: float, bx: float,
+                          by: float) -> float:
+    """Return distance from point (px, py) to segment AB."""
+    if ax == bx and ay == by:
+        return float(np.hypot(px - ax, py - ay))
+    t = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)
+    t = float(np.clip(t, 0.0, 1.0))
+    projx = ax + t * (bx - ax)
+    projy = ay + t * (by - ay)
+    return float(np.hypot(px - projx, py - projy))
+
+
+def segment_distance(a1: tuple[float, float], a2: tuple[float, float],
+                     b1: tuple[float, float], b2: tuple[float, float]) -> float:
+    """Return minimal distance between segments a1a2 and b1b2."""
+    Ax, Ay = a1
+    Bx, By = a2
+    Cx, Cy = b1
+    Dx, Dy = b2
+    d1 = point_to_segment_dist(Ax, Ay, Cx, Cy, Dx, Dy)
+    d2 = point_to_segment_dist(Bx, By, Cx, Cy, Dx, Dy)
+    d3 = point_to_segment_dist(Cx, Cy, Ax, Ay, Bx, By)
+    d4 = point_to_segment_dist(Dx, Dy, Ax, Ay, Bx, By)
+    return min(d1, d2, d3, d4)
+
+
+# Extract coordinates and velocities as arrays for faster access
+X = OUTPUT.iloc[0::2].to_numpy()
+Y = OUTPUT.iloc[1::2].to_numpy()
+V = VELOCITY.to_numpy()
 
 collision = False
-t_star = None
-min_clearance = float('inf')
-for t in times:
-    # 计算所有板凳前/后把手坐标（用于碰撞检测）
-    handles = []  # 存储每节板凳前把手坐标，以及龙尾后把手
-    theta_head = invert_length(s_head0 + v_head*t, theta_head0)
-    handles.append((a*theta_head*np.cos(theta_head), a*theta_head*np.sin(theta_head)))
-    for i in range(2, N+1):
-        s_i = s_head0 + v_head*t - (D_head + (i-2)*D_body)
-        if s_i < 0: 
-            s_i = 0.0
-        theta_i = invert_length(s_i, theta_head)
-        handles.append((a*theta_i*np.cos(theta_i), a*theta_i*np.sin(theta_i)))
-    # 加入龙尾后把手位置（尾节后孔距再减D_body）
-    theta_tail_rear = invert_length(s_i - D_body, theta_i)
-    handles.append((a*theta_tail_rear*np.cos(theta_tail_rear), a*theta_tail_rear*np.sin(theta_tail_rear)))
-    
-    # 快速筛选：按x、y投影距离过滤明显不可能碰撞的板凳对（例如相差两倍板凳长度以上直接跳过）
-    # 精细检测：计算剩余候选对的线段最小距离
+min_clearance = float("inf")
+t_star: float | None = None
+
+for t_index, t in enumerate(TIMES):
+    handles = list(zip(X[:, t_index], Y[:, t_index]))
     n_handles = len(handles)
-    min_dist = float('inf')
-    for i in range(n_handles-2):        # 相邻板凳不需检测
-        for j in range(i+2, n_handles):
-            # 快速排除：以曼哈顿距离为粗略条件
-            xi, yi = handles[i]; xj, yj = handles[j]
-            if abs(xi-xj) > D_body*2 or abs(yi-yj) > D_body*2:
+    min_dist = float("inf")
+
+    # check non-adjacent bench pairs
+    for i in range(n_handles - 2):
+        for j in range(i + 2, n_handles):
+            xi, yi = handles[i]
+            xj, yj = handles[j]
+            if abs(xi - xj) > D_BODY * 2 or abs(yi - yj) > D_BODY * 2:
                 continue
-            # 计算板凳i和j线段最小距离
-            # 板凳i线段端点：handles[i]前把手->handles[i+1]前把手（或尾后把手）
-            if j == i+1: 
-                continue  # 跳过相邻
-            Ax, Ay = handles[i]; Bx, By = handles[i+1] if i+1 < n_handles else handles[i]  # i的后把手
-            Cx, Cy = handles[j]; Dx, Dy = handles[j+1] if j+1 < n_handles else handles[j]
-            # 计算线段AB与CD最短距离
-            def point_line_dist(px, py, ax, ay, bx, by):
-                # 投影参数t
-                if ax == bx and ay == by:
-                    return np.hypot(px-ax, py-ay)
-                t = max(0, min(1, ((px-ax)*(bx-ax)+(py-ay)*(by-ay)) / ((bx-ax)**2+(by-ay)**2)))
-                projx, projy = ax + t*(bx-ax), ay + t*(by-ay)
-                return np.hypot(px-projx, py-projy)
-            # 4种情况取最小
-            d1 = point_line_dist(Ax,Ay,Cx,Cy,Dx,Dy)
-            d2 = point_line_dist(Bx,By,Cx,Cy,Dx,Dy)
-            d3 = point_line_dist(Cx,Cy,Ax,Ay,Bx,By)
-            d4 = point_line_dist(Dx,Dy,Ax,Ay,Bx,By)
-            dist = min(d1,d2,d3,d4)
+            dist = segment_distance(
+                handles[i], handles[i + 1] if i + 1 < n_handles else handles[i],
+                handles[j], handles[j + 1] if j + 1 < n_handles else handles[j],
+            )
             if dist < min_dist:
                 min_dist = dist
-    # 更新最小间隙
+
     if min_dist < min_clearance:
         min_clearance = min_dist
-    # 判断碰撞
-    if min_dist <= 0.30:  # 达到板宽阈值
+
+    if min_dist <= 0.30:
         collision = True
-        t_star = t
+        t_star = float(t)
         break
 
+result_time = (t_star - DT) if collision else TIMES[-1]
+col = np.where(TIMES == result_time)[0]
+if col.size == 0:
+    raise ValueError("Requested time not available in data")
+col_idx = int(col[0])
+
+rows = ["龙头", "第1节龙身", "第51节龙身", "第101节龙身",
+        "第151节龙身", "第201节龙身", "龙尾（后）"]
+idx = [0, 1, 51, 101, 151, 201, 223]
+
+out_df = pd.DataFrame({
+    "row": rows,
+    "x (m)": X[idx, col_idx],
+    "y (m)": Y[idx, col_idx],
+    "v (m/s)": V[idx, col_idx],
+})
+
+out_df.to_excel("result2.xlsx", index=False)
+
 if collision:
-    print(f"检测到碰撞，链条无法继续盘入。终止时刻 t* = {t_star} s")
+    print(f"检测到碰撞，链条无法继续盘入。终止时刻 t* = {t_star:.1f} s")
 else:
     print("链条在模拟时段内未发生碰撞。")
-# 碰撞发生时刻前一秒的数据作为输出
-result_time = t_star - 1 if collision else T_total
-result_data = output.loc[[result_time]]
-result_data.to_excel("result2.xlsx", index=False)
