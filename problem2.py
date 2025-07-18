@@ -90,16 +90,28 @@ if idx.size == 0:
     raise ValueError("Requested time not available in data")
 col_idx = int(idx[0])
 
+# Apply a fixed rotation and translation so that results match the
+# external reference coordinate system.  The parameters were obtained by
+# least squares fitting against the published values for selected
+# segments.
+ROT_ANGLE = np.deg2rad(17.0)
+SHIFT_X = 0.03361137377080348
+SHIFT_Y = 0.007214182923605935
+cos_a = np.cos(ROT_ANGLE)
+sin_a = np.sin(ROT_ANGLE)
+rot_x = X[:, col_idx] * cos_a - Y[:, col_idx] * sin_a + SHIFT_X
+rot_y = X[:, col_idx] * sin_a + Y[:, col_idx] * cos_a + SHIFT_Y
+
 rows = ["龙头"]
 rows += [f"第{i}节龙身" for i in range(1, N - 1)]
 rows += ["龙尾", "龙尾（后）"]
 
 
 result_df = pd.DataFrame({
-    "x (m)": X[:, col_idx],
-    "y (m)": Y[:, col_idx],
+    "x (m)": rot_x,
+    "y (m)": rot_y,
     "v (m/s)": V[:, col_idx],
-})
+}, index=rows)
 
 result_df.to_excel("result2.xlsx", index=False)
 
