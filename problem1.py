@@ -11,14 +11,39 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Constants
+# ---------------------------------------------------------------------------
+# Basic parameters of the dragon chain and spiral
+# ---------------------------------------------------------------------------
 N = 223  # total number of benches (1 head, 221 body, 1 tail)
-D_HEAD = 2.860  # distance from head to the first body bench (m)
-D_BODY = 1.650  # distance between body benches (m)
-PITCH = 0.55  # spiral pitch (m)
-A = PITCH / (2 * np.pi)
-V_HEAD = 1.0  # constant head speed (m/s)
-T_TOTAL = 300  # simulation duration (s)
+
+# distance between the head bench front handle and the next bench
+D_head = 2.860  # metres
+
+# distance between subsequent body benches
+D_body = 1.650  # metres
+
+# Archimedean spiral pitch (m)
+p = 0.55
+
+# spiral coefficient a = p / (2*pi)
+a = p / (2 * np.pi)
+
+# head bench translation speed along the spiral (m/s)
+v_head = 1.0
+
+# total simulation duration (s)
+T_total = 300
+
+# time sequence used throughout the simulation
+times = np.arange(T_total + 1)
+
+# expose upper-case aliases for backward compatibility
+D_HEAD = D_head
+D_BODY = D_body
+PITCH = p
+A = a
+V_HEAD = v_head
+T_TOTAL = T_total
 
 
 def spiral_length(theta: float) -> float:
@@ -37,9 +62,15 @@ def invert_length(s_target: float, theta_guess: float) -> float:
     return theta
 
 
+# initial angle of the head (16 full turns)
+theta_head0 = 16 * 2 * np.pi
+
+# corresponding arc length position of the head at t=0
+s_head0 = spiral_length(theta_head0)
+
+
 def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Generate position and velocity tables for 0--300 seconds."""
-    times = np.arange(T_TOTAL + 1)
+    """Generate position and velocity tables for ``times`` seconds."""
     cols = [f"{t} s" for t in times]
 
     pos_index = ["龙头x (m)", "龙头y (m)"]
@@ -56,10 +87,6 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     # Theta values for head, body benches and tail rear handle
     thetas = np.zeros(N + 1)
 
-
-    theta_head0 = 16 * 2 * np.pi
-    s_head0 = spiral_length(theta_head0)
-
     # initialise all segments at t=0
     thetas[0] = theta_head0
     for seg in range(1, N):
@@ -72,7 +99,7 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     y = np.zeros((N + 1, len(times)))
 
     for t_idx, t in enumerate(times):
-        s_head = s_head0 - V_HEAD * t
+        s_head = s_head0 - v_head * t
         thetas[0] = invert_length(s_head, thetas[0])
         x[0, t_idx] = A * thetas[0] * np.cos(thetas[0])
         y[0, t_idx] = A * thetas[0] * np.sin(thetas[0])
@@ -103,8 +130,11 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     return pos_df, vel_df
 
 
+# Pre-compute tables so that other modules can reuse them directly
+output, velocity = generate_data()
+
+
 if __name__ == "__main__":
-    pos, vel = generate_data()
     with pd.ExcelWriter("result1.xlsx") as writer:
-        pos.to_excel(writer, sheet_name="位置", float_format="%.6f")
-        vel.to_excel(writer, sheet_name="速度", float_format="%.6f")
+        output.to_excel(writer, sheet_name="位置", float_format="%.6f")
+        velocity.to_excel(writer, sheet_name="速度", float_format="%.6f")
