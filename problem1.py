@@ -147,4 +147,8 @@ output, velocity = generate_data()
 
 
 if __name__ == "__main__":
+    # Only execute when run as a script.  Save the computed tables to an Excel
+    # workbook so that they can be inspected or reused by other problems.
     with pd.ExcelWriter("result1.xlsx") as writer:
+        output.to_excel(writer, sheet_name="位置")
+        velocity.to_excel(writer, sheet_name="速度")
