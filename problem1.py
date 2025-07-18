@@ -91,8 +91,12 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     thetas[0] = theta_head0
     for seg in range(1, N):
         s_i = s_head0 - (D_HEAD + (seg - 1) * D_BODY)
+        if s_i < 0:
+            s_i = 0.0
         thetas[seg] = invert_length(s_i, thetas[seg - 1])
     s_tail_rear = s_head0 - (D_HEAD + (N - 1) * D_BODY)
+    if s_tail_rear < 0:
+        s_tail_rear = 0.0
     thetas[N] = invert_length(s_tail_rear, thetas[N - 1])
 
     x = np.zeros((N + 1, len(times)))
@@ -106,11 +110,19 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         for seg in range(1, N):
             s_i = s_head - (D_HEAD + (seg - 1) * D_BODY)
+            # When the rear segments move past the spiral origin their
+            # theoretical arc length becomes negative.  In reality they
+            # would remain at the origin instead of continuing along the
+            # spiral with a negative radius, so clamp the value here.
+            if s_i < 0:
+                s_i = 0.0
             thetas[seg] = invert_length(s_i, thetas[seg])
             x[seg, t_idx] = A * thetas[seg] * np.cos(thetas[seg])
             y[seg, t_idx] = A * thetas[seg] * np.sin(thetas[seg])
 
         s_tail_rear = s_head - (D_HEAD + (N - 1) * D_BODY)
+        if s_tail_rear < 0:
+            s_tail_rear = 0.0
         thetas[N] = invert_length(s_tail_rear, thetas[N])
         x[N, t_idx] = A * thetas[N] * np.cos(thetas[N])
         y[N, t_idx] = A * thetas[N] * np.sin(thetas[N])
@@ -136,5 +148,3 @@ output, velocity = generate_data()
 
 if __name__ == "__main__":
     with pd.ExcelWriter("result1.xlsx") as writer:
-        output.to_excel(writer, sheet_name="位置", float_format="%.6f")
-        velocity.to_excel(writer, sheet_name="速度", float_format="%.6f")
