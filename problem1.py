@@ -57,7 +57,8 @@ def generate_data():
     s_head0 = spiral_length(theta_head0)
 
     for t in times:
-        s_head = s_head0 + v_head * t
+        # 头部沿螺旋线向内收缩，弧长随时间递减
+        s_head = max(0.0, s_head0 - v_head * t)
 
         theta_head = invert_length(s_head, theta_head0)
         x_head = a * theta_head * np.cos(theta_head)
@@ -66,9 +67,8 @@ def generate_data():
         output.at[t, "龙头y (m)"] = y_head
 
         for i in [2, 52, 102, 152, 202]:
-            s_i = s_head - (D_head + (i - 2) * D_body)
-            if s_i < 0:
-                s_i = 0.0
+            # 各节龙身或龙尾所处弧长，相对龙头后退相应间距
+            s_i = max(0.0, s_head - (D_head + (i - 2) * D_body))
             theta_i = invert_length(s_i, theta_head if i < 50 else 0)
             xi = a * theta_i * np.cos(theta_i)
             yi = a * theta_i * np.sin(theta_i)
@@ -84,4 +84,9 @@ times, theta_head0, s_head0, output = generate_data()
 
 
 if __name__ == "__main__":
+    # 打印几个时刻的龙头半径, 验证其随时间减小
+    for t_sample in [0, 100, 200, 300]:
+        r_head = np.hypot(output.at[t_sample, "龙头x (m)"], output.at[t_sample, "龙头y (m)"])
+        print(f"t={t_sample}s, r_head={r_head:.3f} m")
+
     output.to_excel("result1.xlsx", index_label="时间(s)", float_format="%.6f")
