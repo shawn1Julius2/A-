@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from shapely.geometry import LineString
+from shapely.strtree import STRtree
 
 import problem1 as p1
 
@@ -55,34 +57,27 @@ Y = OUTPUT.iloc[1::2].to_numpy()
 V = VELOCITY.to_numpy()
 
 collision = False
-min_clearance = float("inf")
 t_star: float | None = None
 
 for t_index, t in enumerate(TIMES):
-    handles = list(zip(X[:, t_index], Y[:, t_index]))
-    n_handles = len(handles)
-    min_dist = float("inf")
-
-    # check non-adjacent bench pairs
-    for i in range(n_handles - 2):
-        for j in range(i + 2, n_handles):
-            xi, yi = handles[i]
-            xj, yj = handles[j]
-            if abs(xi - xj) > D_BODY * 2 or abs(yi - yj) > D_BODY * 2:
+    segments = [
+        LineString([(X[i, t_index], Y[i, t_index]), (X[i + 1, t_index], Y[i + 1, t_index])])
+        for i in range(N)
+    ]
+    tree = STRtree(segments)
+    collision = False
+    for idx, seg in enumerate(segments):
+        candidates = tree.query(seg.buffer(0.35))
+        for j in candidates:
+            if abs(j - idx) <= 1:
                 continue
-            dist = segment_distance(
-                handles[i], handles[i + 1] if i + 1 < n_handles else handles[i],
-                handles[j], handles[j + 1] if j + 1 < n_handles else handles[j],
-            )
-            if dist < min_dist:
-                min_dist = dist
-
-    if min_dist < min_clearance:
-        min_clearance = min_dist
-
-    if min_dist <= 0.30:
-        collision = True
-        t_star = float(t)
+            if seg.distance(segments[j]) <= 0.30:
+                collision = True
+                t_star = float(t)
+                break
+        if collision:
+            break
+    if collision:
         break
 
 result_time = (t_star - DT) if collision else TIMES[-1]
@@ -96,10 +91,10 @@ rows = ["龙头", "第1节龙身", "第51节龙身", "第101节龙身",
 idx = [0, 1, 51, 101, 151, 201, 223]
 
 out_df = pd.DataFrame({
-    "row": rows,
-    "x (m)": X[idx, col_idx],
-    "y (m)": Y[idx, col_idx],
-    "v (m/s)": V[idx, col_idx],
+    "Unnamed: 0": rows,
+    "横坐标x (m)": X[idx, col_idx],
+    "纵坐标y (m)": Y[idx, col_idx],
+    "速度 (m/s)": V[idx, col_idx],
 })
 
 out_df.to_excel("result2.xlsx", index=False)
