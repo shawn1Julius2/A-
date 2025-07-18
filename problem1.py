@@ -31,11 +31,14 @@ a = p / (2 * np.pi)
 # head bench translation speed along the spiral (m/s)
 v_head = 1.0
 
+# simulation time step (s)
+DT = 1.0
+
 # total simulation duration (s)
 T_total = 300
 
 # time sequence used throughout the simulation
-times = np.arange(T_total + 1)
+times = np.arange(0, T_total + DT, DT)
 
 # expose upper-case aliases for backward compatibility
 D_HEAD = D_head
@@ -139,7 +142,9 @@ def generate_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     # Compute velocities
     vel = np.zeros((N + 1, len(times)))
-    vel[:, 1:] = np.sqrt(np.diff(x, axis=1) ** 2 + np.diff(y, axis=1) ** 2)
+    diff_x = np.diff(x, axis=1)
+    diff_y = np.diff(y, axis=1)
+    vel[:, 1:] = np.sqrt(diff_x ** 2 + diff_y ** 2) / DT
 
     for idx, name in enumerate(vel_index):
         vel_df.loc[name, :] = vel[idx, :]
