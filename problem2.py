@@ -25,7 +25,7 @@ DT = p1.DT
 N = p1.N
 
 # Width of each bench (m)
-BENCH_WIDTH = 0.30
+BENCH_WIDTH = 0.43
 
 # Bench lengths (head bench then body benches)
 lengths = np.array([p1.D_head] + [p1.D_body] * (N - 1))
@@ -90,15 +90,15 @@ if idx.size == 0:
     raise ValueError("Requested time not available in data")
 col_idx = int(idx[0])
 
-rows = ["龙头", "第1节龙身", "第51节龙身", "第101节龙身",
-        "第151节龙身", "第201节龙身", "龙尾（后）"]
-positions = [0, 1, 51, 101, 151, 201, 223]
+rows = ["龙头"]
+rows += [f"第{i}节龙身" for i in range(1, N - 1)]
+rows += ["龙尾", "龙尾（后）"]
+
 
 result_df = pd.DataFrame({
-    "row": rows,
-    "x (m)": X[positions, col_idx],
-    "y (m)": Y[positions, col_idx],
-    "v (m/s)": V[positions, col_idx],
+    "x (m)": X[:, col_idx],
+    "y (m)": Y[:, col_idx],
+    "v (m/s)": V[:, col_idx],
 })
 
 result_df.to_excel("result2.xlsx", index=False)
