@@ -131,5 +131,15 @@ times, theta_head0, s_head0, output, velocity = generate_data()
 
 if __name__ == "__main__":
     with pd.ExcelWriter("result1.xlsx") as writer:
-        output.to_excel(writer, sheet_name="位置", index_label="时间(s)", float_format="%.6f")
-        velocity.to_excel(writer, sheet_name="速度", index_label="时间(s)", float_format="%.6f")
+        output.to_excel(
+            writer,
+            sheet_name="位置",
+            index_label="时间(s)",
+            float_format="%.6f",
+        )
+        velocity.to_excel(
+            writer,
+            sheet_name="速度",
+            index_label="时间(s)",
+            float_format="%.6f",
+        )
