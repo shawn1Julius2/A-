@@ -12,7 +12,7 @@ s_head0 = p1.s_head0
 theta_head0 = p1.theta_head0
 v_head = p1.v_head
 a = p1.a
-output = p1.output
+position_df = p1.position_df
 T_total = p1.T_total
 
 
@@ -81,5 +81,5 @@ else:
     print("链条在模拟时段内未发生碰撞。")
 # 碰撞发生时刻前一秒的数据作为输出
 result_time = t_star - 1 if collision else T_total
-result_data = output.loc[[result_time]]
+result_data = position_df.loc[[result_time]]
 result_data.to_excel("result2.xlsx", index=False)

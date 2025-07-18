@@ -51,7 +51,9 @@ def generate_data():
         + [f"第{i}节龙身y (m)" for i in [1, 51, 101, 151, 201]]
         + ["龙尾x (m)", "龙尾y (m)"]
     )
-    output = pd.DataFrame(np.zeros((len(times), len(cols))), index=times, columns=cols)
+    position_df = pd.DataFrame(
+        np.zeros((len(times), len(cols))), index=times, columns=cols
+    )
 
     theta_head0 = 16 * 2 * np.pi
     s_head0 = spiral_length(theta_head0)
@@ -62,8 +64,8 @@ def generate_data():
         theta_head = invert_length(s_head, theta_head0)
         x_head = a * theta_head * np.cos(theta_head)
         y_head = a * theta_head * np.sin(theta_head)
-        output.at[t, "龙头x (m)"] = x_head
-        output.at[t, "龙头y (m)"] = y_head
+        position_df.at[t, "龙头x (m)"] = x_head
+        position_df.at[t, "龙头y (m)"] = y_head
 
         for i in [2, 52, 102, 152, 202]:
             s_i = s_head - (D_head + (i - 2) * D_body)
@@ -74,14 +76,16 @@ def generate_data():
             yi = a * theta_i * np.sin(theta_i)
             colx = f"第{i - 1}节龙身x (m)" if i < 223 else "龙尾x (m)"
             coly = f"第{i - 1}节龙身y (m)" if i < 223 else "龙尾y (m)"
-            output.at[t, colx] = xi
-            output.at[t, coly] = yi
+            position_df.at[t, colx] = xi
+            position_df.at[t, coly] = yi
 
-    return times, theta_head0, s_head0, output
+    return times, theta_head0, s_head0, position_df
 
 
-times, theta_head0, s_head0, output = generate_data()
+times, theta_head0, s_head0, position_df = generate_data()
 
 
 if __name__ == "__main__":
-    output.to_excel("result1.xlsx", index_label="时间(s)", float_format="%.6f")
+    position_df.to_excel(
+        "result1.xlsx", index_label="时间(s)", float_format="%.6f"
+    )
