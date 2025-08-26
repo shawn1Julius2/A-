@@ -162,3 +162,168 @@ if __name__ == "__main__":
     with pd.ExcelWriter("result1.xlsx") as writer:
         output.to_excel(writer, sheet_name="位置")
         velocity.to_excel(writer, sheet_name="速度")
+
+
+# ---------------------------------------------------------------------------
+# Unsupervised maintenance clustering utilities (problem 1 auxiliary code)
+# ---------------------------------------------------------------------------
+
+from typing import Sequence
+
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.mixture import GaussianMixture
+from sklearn.metrics import (
+    adjusted_rand_score,
+    davies_bouldin_score,
+    silhouette_score,
+)
+from sklearn.preprocessing import PowerTransformer, StandardScaler
+import matplotlib as mpl
+
+
+WHITELIST_FEATURES = [
+    "feature1",
+    "feature2",
+    "feature3",
+    "feature4",
+    "feature5",
+    "feature6",
+    "feature7",
+    "feature8",
+    "feature9",
+]
+
+LABEL_COL = "Failure_Within_7_Days"
+
+
+def ensure_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a defensive copy keeping only whitelisted columns.
+
+    Parameters
+    ----------
+    df:
+        Raw input DataFrame.
+    """
+
+    cols = [c for c in WHITELIST_FEATURES if c in df.columns]
+    keep = cols + ([LABEL_COL] if LABEL_COL in df.columns else [])
+    if "Machine_ID" in df.columns:
+        keep = ["Machine_ID"] + keep
+    return df[keep].copy()
+
+
+def setup_fonts() -> None:
+    """Configure fonts with graceful degradation."""
+
+    preferred = ["Hiragino Sans GB", "SimHei", "Arial Unicode MS"]
+    existing = list(mpl.rcParams.get("font.sans-serif", []))
+    for font in preferred:
+        if font not in existing:
+            existing.append(font)
+    mpl.rcParams["font.sans-serif"] = existing
+
+
+def name_clusters_by_risk(
+    means: np.ndarray, feature_names: Sequence[str]
+) -> tuple[list[str], np.ndarray]:
+    """Assign simple textual names to clusters based on mean values.
+
+    The clusters are ordered by the mean of their features, with lower means
+    interpreted as representing higher maintenance demand.
+    """
+
+    order = np.argsort(means.mean(axis=1))
+    names = [f"Cluster {i}" for i in order]
+    return names, order
+
+
+def cluster_machines(df: pd.DataFrame) -> dict:
+    """Perform GMM clustering with BIC-based model selection.
+
+    This routine follows the modelling approach described in the project
+    documentation.  It implements data-driven boundary detection, internal
+    validity metrics and robust handling of optional labels.
+    """
+
+    setup_fonts()
+    df = ensure_features(df)
+
+    has_label = LABEL_COL in df.columns
+    if has_label:
+        y = df[LABEL_COL].fillna(0).astype(int).values
+        X = df.drop(columns=[LABEL_COL])
+    else:
+        X = df
+        y = None
+
+    id_col = "Machine_ID" if "Machine_ID" in df.columns else None
+    ids = df[id_col].values if id_col else np.arange(len(df))
+
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(X)
+
+    pt = PowerTransformer(method="yeo-johnson")
+    Xn = pt.fit_transform(Xs)
+
+    bic_scores: list[float] = []
+    models: list[GaussianMixture] = []
+    for k in range(2, 11):
+        init = MiniBatchKMeans(n_clusters=k, n_init=10, random_state=0)
+        init.fit(Xn)
+        gmm = GaussianMixture(
+            n_components=k,
+            covariance_type="diag",
+            reg_covar=1e-6,
+            random_state=0,
+            means_init=init.cluster_centers_,
+        )
+        gmm.fit(Xn)
+        bic_scores.append(gmm.bic(Xn))
+        models.append(gmm)
+
+    best_idx = int(np.argmin(bic_scores))
+    best_model = models[best_idx]
+
+    gamma = best_model.predict_proba(Xn)
+    max_gamma = gamma.max(axis=1)
+    hard = gamma.argmax(axis=1)
+
+    alpha = float(np.quantile(max_gamma, 0.70))
+    boundary = (max_gamma < alpha).astype(int)
+
+    # internal validity metrics (sampled)
+    sample_idx = np.random.choice(len(Xn), size=min(20000, len(Xn)), replace=False)
+    sil = float(silhouette_score(Xn[sample_idx], hard[sample_idx]))
+    dbi = float(davies_bouldin_score(Xn[sample_idx], hard[sample_idx]))
+    with open("q1_internal_validity.txt", "w", encoding="utf-8") as f:
+        f.write(f"Silhouette(sampled): {sil:.4f}\nDBI(sampled): {dbi:.4f}\n")
+
+    # output assignments
+    out_assign = pd.DataFrame(
+        {
+            (id_col or "Machine_Index"): ids,
+            "Cluster": hard,
+            "max_gamma": max_gamma,
+            "Boundary": boundary,
+        }
+    )
+    out_assign.to_csv("q1_assignments.csv", index=False, encoding="utf-8-sig")
+
+    # cluster naming
+    names, order = name_clusters_by_risk(best_model.means_, X.columns)
+    pd.DataFrame({"Cluster": list(order), "Name": names}).to_csv(
+        "q1_cluster_names.csv", index=False, encoding="utf-8-sig"
+    )
+
+    summary = {
+        "best_k": int(best_model.n_components),
+        "boundary_alpha_data_driven": alpha,
+        "silhouette_sampled": sil,
+        "dbi_sampled": dbi,
+    }
+    if y is not None:
+        ari = float(adjusted_rand_score(y, hard))
+        summary["ari_full"] = ari
+
+    return summary
+
